@@ -39,4 +39,6 @@ June 18, 2025
 
 The core implementation of the GTAB-AC framework has been made available, and the corresponding datasets and preprocessing pipeline will be released after further curation.
 
+July 10, 2025
 
+The curated relative abundance matrix has been uploaded.
