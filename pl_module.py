@@ -14,21 +14,15 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import KFold
 
-from network.tab_network import TabNet
+from network.GNN_network import GAT_GCN
 from utils.utils import mae, cal_r2_score, ci, visualize_and_save_masks
 
 
-class TabNetLightningModule(pl.LightningModule):
-    def __init__(self, input_dim, graph_hidden_dim, graph_output_dim, lambda_sparse, lr, loss_fn, graph_pe_encoding,
+class GTABACLightningModule(pl.LightningModule):
+    def __init__(self, input_dim, num_features_xnode, graph_output_dim, lambda_sparse, lr, loss_fn, graph_pe_encoding,
                  clip_value=1):
         super().__init__()
-        self.model = TabNet(input_dim, 1,
-                            n_d=28, n_a=22, n_steps=3, gamma=1.1,
-                            n_independent=4, n_shared=5, mask_type='entmax',
-                            graph_branch=False,
-                            hidden_dim=graph_hidden_dim,
-                            graph_output_dim=graph_output_dim,
-                            graph_pe_encoding=graph_pe_encoding)
+        self.model = GAT_GCN(num_features_xnode=num_features_xnode)
         self.lambda_sparse = lambda_sparse
         self.loss_fn = loss_fn
         self.lr = lr
@@ -39,9 +33,8 @@ class TabNetLightningModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         labels = batch.y
-        preds, M_loss = self(batch)
+        preds = self(batch)
         loss = self.loss_fn(preds.squeeze(), labels)
-        loss = loss - self.lambda_sparse * M_loss
         if self.clip_value:
             clip_grad_norm_(self.model.parameters(), self.clip_value)
         self.log("train_loss", loss, prog_bar=True)
@@ -53,7 +46,7 @@ class TabNetLightningModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         labels = batch.y
-        preds, _ = self(batch)
+        preds = self(batch)
         self.val_preds.append(preds.detach().cpu())
         self.val_labels.append(labels.detach().cpu())
 
@@ -65,7 +58,7 @@ class TabNetLightningModule(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.98)
 
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
 
@@ -75,7 +68,7 @@ class TabNetLightningModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         labels = batch.y
-        preds, _ = self(batch)
+        preds = self(batch)
         self.test_preds.append(preds.detach().cpu())
         self.test_labels.append(labels.detach().cpu())
 

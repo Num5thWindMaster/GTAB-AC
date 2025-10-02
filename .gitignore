@@ -195,3 +195,11 @@ cython_debug/
 
 # IDE
 .idea
+
+# raw data
+data_ext/
+data/
+saved_models/
+logs/
+explanations/
+sub_graph_out/

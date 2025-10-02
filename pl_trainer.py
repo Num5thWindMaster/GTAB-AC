@@ -20,8 +20,8 @@ from torch.utils.data import Subset
 from torch_geometric.data import DataLoader
 from torch_geometric.transforms import AddLaplacianEigenvectorPE, AddRandomWalkPE
 
-from network.pl_module import TabNetLightningModule
-from utils.dataset import SpeciesNodeTabularDataset, SpeciesNodePETabularDataset
+from pl_module import GTABACLightningModule
+from dataset import SpeciesNodePETabularDataset
 from utils.utils import cal_r2_score, ci, mae
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,24 +34,33 @@ def set_seed(seed=6):
     np.random.seed(seed)
     torch_geometric.seed_everything(seed)
     random.seed(seed)
-    torch.backends.cudnn.deterministic = True  # 确保CUDA卷积操作确定性
+    torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.use_deterministic_algorithms(True, warn_only=True)
 
 
-
-
-
-batch_size = 512
-seed = 6
+batch_size = 32
+seed = 16
 set_seed(seed)
+
 
 def worker_init_fn(worker_id):
     np.random.seed(seed + worker_id)
 
+
 graph_pe_encoding_dim = 32
 transform = AddRandomWalkPE(walk_length=graph_pe_encoding_dim, attr_name='pe_enc')
-dataset = SpeciesNodePETabularDataset(os.path.join(base_dir, '../data'), pre_transform=transform)
+# dataset = SpeciesNodePETabularDataset(os.path.join(base_dir, 'data_ext'), pre_transform=transform)
+dataset = SpeciesNodePETabularDataset(
+    age_label='age',
+    id_label='uid',
+    root=os.path.join(base_dir, 'data_ext'),
+    mode='all',
+    edge_acc_emb=True,
+    p_threshold=0.1,
+    n_threshold=-0.1,
+    pre_transform=transform,
+)
 indices = list(range(len(dataset)))
 
 train_valid_idx, test_idx = train_test_split(
@@ -60,28 +69,26 @@ train_valid_idx, test_idx = train_test_split(
 
 test_dataset = dataset[test_idx]
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, worker_init_fn=worker_init_fn)
-
-
 input_dim = dataset[0].abundance.shape[0]
-graph_hidden_dim = 768
-graph_output_dim = 28
-fold_epochs = 300
+num_features_xnode = 200
+graph_output_dim = 800
+fold_epochs = 80
 LOG_INTERVAL = 10
 clip_value = 1  # 1 0.5
 lambda_sparse = 9e-4
-lr=3e-2
+lr = 1e-4
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-
 kf = KFold(n_splits=5, shuffle=True, random_state=seed)
 all_fold_maes = []
 current_fold = 0
 best_test_mae = best_test_r2 = best_test_ci = 0
-model_file_name = 'saved_models/tabnet_model_exp'
+saved_models_path = 'saved_models'
+if not os.path.exists(saved_models_path):
+    os.mkdir(saved_models_path)
+model_file_name = 'saved_models/tabnet_model_exp_e80l1e-4s16'
 
-model = TabNetLightningModule(input_dim=input_dim,
-                              graph_hidden_dim=graph_hidden_dim,
+model = GTABACLightningModule(input_dim=input_dim,
+                              num_features_xnode=num_features_xnode,
                               graph_output_dim=graph_output_dim,
                               lambda_sparse=lambda_sparse,
                               lr=lr,
@@ -91,17 +98,13 @@ checkpoint_callback = None
 for train_idx, valid_idx in kf.split(train_valid_idx):
     current_fold += 1
     print(f"=== Fold {current_fold} ===")
-
     train_dataset = Subset(dataset, train_idx)
     valid_dataset = Subset(dataset, valid_idx)
-
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, worker_init_fn=worker_init_fn)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, worker_init_fn=worker_init_fn)
-
     checkpoint_callback = ModelCheckpoint(monitor="val_mae", mode="min",
                                           save_top_k=1, save_weights_only=True,
                                           filename="best-checkpoint")
-
     early_stop_callback = EarlyStopping(
         monitor='val_mae',
         mode='min',
@@ -121,6 +124,7 @@ for train_idx, valid_idx in kf.split(train_valid_idx):
     trainer.fit(model, train_loader, valid_loader)
     trainer.test(model, test_loader)
 
+torch.save(model.state_dict(), model_file_name + '.pth')
 
 # For no cross validation training
 # best_model = TabNetLightningModule.load_from_checkpoint(checkpoint_path=checkpoint_callback.best_model_path,
@@ -150,7 +154,6 @@ for train_idx, valid_idx in kf.split(train_valid_idx):
 # best_test_r2 = cal_r2_score(G, P)[0]
 # best_test_ci = ci(G, P)
 # torch.save(best_model.state_dict(), model_file_name + '_best.pth')
-# torch.save(model.state_dict(), model_file_name + '.pth')
 #
 # print('\n========== Cross-Validation Result ==========')
 # print('Best test MAE:', best_test_mae)

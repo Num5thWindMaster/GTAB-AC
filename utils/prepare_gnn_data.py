@@ -15,7 +15,8 @@ from pathlib import Path
 from torch_geometric.utils import add_self_loops
 from torch_scatter import scatter_add
 
-def build_graph_data_list(edge_acc_emb=False,
+def build_graph_data_list(root,
+                          edge_acc_emb=False,
                           p_threshold=0.3,
                           n_threshold=-0.3,
                           dna_emb_path='dna_embeddings.pt',
