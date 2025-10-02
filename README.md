@@ -25,9 +25,6 @@ SILVA:
 
 https://www.arb-silva.de/no_cache/download/archive/release_138.2/Exports/
 
-Chen's:
-
-https://doi.org/10.1080/19490976.2021.2025016
 <br><br>
 **Revision History**:
 
@@ -42,3 +39,7 @@ The core implementation of the GTAB-AC framework has been made available, and th
 July 10, 2025
 
 The curated relative abundance matrix has been uploaded.
+
+Oct 2, 2025
+
+All revises merged. Explanations and accumulation methods added.
