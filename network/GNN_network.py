@@ -44,6 +44,12 @@ class GAT_GCN(torch.nn.Module):
         edge_weight = getattr(data, 'edge_weight', None)
         pe_enc = data.pe_enc
 
+        # relative abundance weighting (optional)
+        # ab_weight = data.ab_weight
+        # flat_weight = [w for graph_w in ab_weight for w in graph_w]  # flatten
+        # flat_weight = torch.tensor(flat_weight, dtype=torch.float32, device=x.device).view(-1, 1)  # shape [N, 1]
+        # x = x * flat_weight
+
         if edge_index.numel() == 0:
             edge_index = torch.arange(len(x), device=self.device)
             edge_index = torch.stack([edge_index, edge_index], dim=0)
